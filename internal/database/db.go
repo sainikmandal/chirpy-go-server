@@ -24,11 +24,20 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.createChirpStmt, err = db.PrepareContext(ctx, createChirp); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateChirp: %w", err)
+	}
 	if q.createUserStmt, err = db.PrepareContext(ctx, createUser); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateUser: %w", err)
 	}
 	if q.deleteAllUsersStmt, err = db.PrepareContext(ctx, deleteAllUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteAllUsers: %w", err)
+	}
+	if q.getChirpStmt, err = db.PrepareContext(ctx, getChirp); err != nil {
+		return nil, fmt.Errorf("error preparing query GetChirp: %w", err)
+	}
+	if q.getChirpsStmt, err = db.PrepareContext(ctx, getChirps); err != nil {
+		return nil, fmt.Errorf("error preparing query GetChirps: %w", err)
 	}
 	if q.getUserStmt, err = db.PrepareContext(ctx, getUser); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUser: %w", err)
@@ -38,6 +47,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.createChirpStmt != nil {
+		if cerr := q.createChirpStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createChirpStmt: %w", cerr)
+		}
+	}
 	if q.createUserStmt != nil {
 		if cerr := q.createUserStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createUserStmt: %w", cerr)
@@ -46,6 +60,16 @@ func (q *Queries) Close() error {
 	if q.deleteAllUsersStmt != nil {
 		if cerr := q.deleteAllUsersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteAllUsersStmt: %w", cerr)
+		}
+	}
+	if q.getChirpStmt != nil {
+		if cerr := q.getChirpStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getChirpStmt: %w", cerr)
+		}
+	}
+	if q.getChirpsStmt != nil {
+		if cerr := q.getChirpsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getChirpsStmt: %w", cerr)
 		}
 	}
 	if q.getUserStmt != nil {
@@ -92,8 +116,11 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                 DBTX
 	tx                 *sql.Tx
+	createChirpStmt    *sql.Stmt
 	createUserStmt     *sql.Stmt
 	deleteAllUsersStmt *sql.Stmt
+	getChirpStmt       *sql.Stmt
+	getChirpsStmt      *sql.Stmt
 	getUserStmt        *sql.Stmt
 }
 
@@ -101,8 +128,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                 tx,
 		tx:                 tx,
+		createChirpStmt:    q.createChirpStmt,
 		createUserStmt:     q.createUserStmt,
 		deleteAllUsersStmt: q.deleteAllUsersStmt,
+		getChirpStmt:       q.getChirpStmt,
+		getChirpsStmt:      q.getChirpsStmt,
 		getUserStmt:        q.getUserStmt,
 	}
 }

@@ -11,8 +11,11 @@ import (
 )
 
 type Querier interface {
+	CreateChirp(ctx context.Context, arg CreateChirpParams) (Chirp, error)
 	CreateUser(ctx context.Context, email string) (User, error)
 	DeleteAllUsers(ctx context.Context) error
+	GetChirp(ctx context.Context, id uuid.UUID) (Chirp, error)
+	GetChirps(ctx context.Context) ([]Chirp, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 }
 
