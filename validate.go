@@ -2,39 +2,52 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
+	"strings"
 )
 
-func validateChirp(w http.ResponseWriter, r *http.Request) {
+func handlerChirpsValidate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
 	}
+	type returnVals struct {
+		CleanedBody string `json:"cleaned_body"`
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(500)
-		json.NewEncoder(w).Encode(errorVal{Error: "Something went wrong"})
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
 
 	const maxChirpLength = 140
 	if len(params.Body) > maxChirpLength {
-		w.WriteHeader(400)
-		json.NewEncoder(w).Encode(errorVal{Error: "Chirp is too long"})
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
 		return
 	}
 
-	w.WriteHeader(200)
-	json.NewEncoder(w).Encode(okVal{Valid: true})
+	badWords := map[string]struct{}{
+		"kerfuffle": {},
+		"sharbert":  {},
+		"fornax":    {},
+	}
+	cleaned := getCleanedBody(params.Body, badWords)
+
+	respondWithJSON(w, http.StatusOK, returnVals{
+		CleanedBody: cleaned,
+	})
 }
 
-type errorVal struct {
-	Error string `json:"error"`
-}
-
-type okVal struct {
-	Valid bool `json:"valid"`
+func getCleanedBody(body string, badWords map[string]struct{}) string {
+	words := strings.Split(body, " ")
+	for i, word := range words {
+		loweredWord := strings.ToLower(word)
+		if _, ok := badWords[loweredWord]; ok {
+			words[i] = "****"
+		}
+	}
+	cleaned := strings.Join(words, " ")
+	return cleaned
 }
