@@ -1,8 +1,2 @@
-# Go binaries and object files
-*.exe
-*.test
-*.out
-
-# Ignore OS generated files
-.DS_Store
-Thumbs.db
+out
+.env
