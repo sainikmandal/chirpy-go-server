@@ -5,19 +5,32 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
+	"github.com/sainikmandal/chirpy-go-server/internal/auth"
 	db "github.com/sainikmandal/chirpy-go-server/internal/database"
 )
 
 func (cfg *apiConfig) chirpCreateHandler(w http.ResponseWriter, r *http.Request) {
+	// Get and validate JWT token
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid authorization header", err)
+		return
+	}
+
+	// Validate JWT and get user ID
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid token", err)
+		return
+	}
+
 	type parameters struct {
-		Body   string `json:"body"`
-		UserID string `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
@@ -42,12 +55,6 @@ func (cfg *apiConfig) chirpCreateHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	cleanedBody := strings.Join(words, " ")
-
-	userID, err := uuid.Parse(params.UserID)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid user ID", err)
-		return
-	}
 
 	chirp, err := cfg.db.CreateChirp(r.Context(), db.CreateChirpParams{
 		Body:   cleanedBody,

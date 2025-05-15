@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -19,6 +20,8 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	jwtSecret      string
+	PolkaKey       string
 }
 type User struct {
 	ID        uuid.UUID `json:"id"`
@@ -31,13 +34,25 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	jwtSecret := os.Getenv("JWT_SECRET")
+	polkaKey := os.Getenv("POLKA_KEY")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
+	}
+	if polkaKey == "" {
+		log.Fatal("POLKA_KEY environment variable is required")
+	}
 	conn, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer conn.Close()
 
-	dbQueries := database.New(conn)
+	dbQueries, err := database.Prepare(context.Background(), conn)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dbQueries.Close()
 
 	const filepathRoot = "."
 	const port = "8080"
@@ -46,6 +61,8 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platform,
+		jwtSecret:      jwtSecret,
+		PolkaKey:       polkaKey,
 	}
 
 	mux := http.NewServeMux()
@@ -57,6 +74,12 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", apiCfg.chirpCreateHandler)
 	mux.HandleFunc("GET /api/chirps", apiCfg.chirpGetHandler)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.chirpGetByIDHandler)
+	mux.HandleFunc("POST /api/login", apiCfg.loginHandler)
+	mux.HandleFunc("POST /api/refresh", apiCfg.refreshHandler)
+	mux.HandleFunc("POST /api/revoke", apiCfg.revokeHandler)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.polkaWebhookHandler)
+	mux.HandleFunc("PUT /api/users", apiCfg.userUpdateHandler)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.chirpDeleteHandler)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
